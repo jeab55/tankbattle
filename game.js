@@ -55,6 +55,27 @@ const C = {
 // ---------- Audio (Web Audio API 8-bit) ----------
 const Audio = (() => {
   let ac = null;
+  let musicOn = true, musicTimer = null, musicNoteIdx = 0;
+  const MELODY = [[523,150],[659,150],[784,150],[1047,300],[784,150],[659,150],[523,300],[392,150],[523,150],[659,300],[523,150],[440,150],[392,300],[349,150],[440,150],[523,300],[659,150],[523,150],[440,300]];
+  const BASS = [196, 196, 261, 261];
+  function playNote() {
+    if (!musicOn || !ac) return;
+    const [freq, dur] = MELODY[musicNoteIdx % MELODY.length];
+    const a = ac, o = a.createOscillator(), g = a.createGain();
+    o.type='square'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.025, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur/1000*0.95);
+    o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + dur/1000);
+    if (musicNoteIdx % 2 === 0) {
+      const o2 = a.createOscillator(), g2 = a.createGain();
+      o2.type='triangle'; o2.frequency.value = BASS[Math.floor(musicNoteIdx/2) % BASS.length];
+      g2.gain.setValueAtTime(0.04, a.currentTime);
+      g2.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur/1000*1.8);
+      o2.connect(g2); g2.connect(a.destination); o2.start(); o2.stop(a.currentTime + dur/1000*1.8);
+    }
+    musicNoteIdx++;
+    musicTimer = setTimeout(playNote, dur);
+  }
   function ensure() {
     if (!ac) {
       try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
@@ -89,6 +110,9 @@ const Audio = (() => {
     start: () => { beep(440,0.1); setTimeout(()=>beep(660,0.1),100); setTimeout(()=>beep(880,0.15),200); },
     over:  () => { beep(220,0.2); setTimeout(()=>beep(165,0.2),200); setTimeout(()=>beep(110,0.4),400); },
     clear: () => { beep(523,0.1); setTimeout(()=>beep(659,0.1),100); setTimeout(()=>beep(784,0.1),200); setTimeout(()=>beep(1047,0.2),300); },
+    music: () => { if (musicTimer) return; musicNoteIdx = 0; playNote(); },
+    stopMusic: () => { if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; } },
+    toggleMusic: () => { musicOn = !musicOn; if (!musicOn && musicTimer) { clearTimeout(musicTimer); musicTimer = null; } else if (musicOn) playNote(); return musicOn; },
   };
 })();
 
@@ -100,6 +124,8 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyP' && game.state === STATE.PLAYING) game.state = STATE.PAUSED;
   else if (e.code === 'KeyP' && game.state === STATE.PAUSED) game.state = STATE.PLAYING;
   if (e.code === 'KeyR') resetGame(true);
+  if (e.code === 'KeyM') Audio.toggleMusic && Audio.toggleMusic();
+  if (e.code === 'KeyF') { document.body.classList.toggle('crt'); }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
@@ -283,6 +309,8 @@ const game = {
   bullets: [],
   powerups: [],
   explosions: [],
+  popups: [],
+  stageIntroTimer: 0,
   enemySpawnQueue: [],
   enemySpawnTimer: 0,
   spawnPoints: [],
@@ -463,6 +491,7 @@ class Tank {
         const score = (this.type+1) * 100;
         game.score += score;
         game.enemiesKilled++;
+        scorePopup(this.x + 16, this.y, score);
         if (this.hasPowerup) spawnPowerup();
       }
       return true;
@@ -671,6 +700,26 @@ function explode(x, y, small=false) {
   game.explosions.push(new Explosion(x, y, small));
   if (!small) game.shake = 6;
 }
+
+// ---------- ScorePopup ----------
+class ScorePopup {
+  constructor(x, y, score) {
+    this.x = x; this.y = y; this.text = '+' + score; this.t = 0; this.life = 50;
+    this.color = score >= 500 ? '#80d010' : score >= 300 ? '#fcc442' : '#fcfcfc';
+  }
+  update() { this.t++; this.y -= 0.6; }
+  draw() {
+    const alpha = this.t < this.life*0.7 ? 1 : (1 - (this.t - this.life*0.7) / (this.life*0.3));
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#000'; ctx.font = 'bold 10px "Press Start 2P", monospace'; ctx.textAlign = 'center';
+    ctx.fillText(this.text, this.x + 1, this.y + 1);
+    ctx.fillStyle = this.color;
+    ctx.fillText(this.text, this.x, this.y);
+    ctx.globalAlpha = 1;
+  }
+  get dead() { return this.t >= this.life; }
+}
+function scorePopup(x, y, score) { game.popups.push(new ScorePopup(x, y, score)); }
 
 // ---------- Tanks ----------
 function allTanks() {
@@ -898,6 +947,7 @@ function startGame() {
   Audio.start();
   loadStage(game.stage);
   overlay.classList.remove('show');
+  setTimeout(() => Audio.music && Audio.music(), 800);
 }
 
 function loadStage(stageNum) {
@@ -926,6 +976,8 @@ function loadStage(stageNum) {
   game.enemySpawnTimer = 0;
   game.player = new Tank(game.playerSpawn.x, game.playerSpawn.y, true);
   game.maxEnemiesOnField = Math.min(4, 2 + Math.floor(stageNum / 2));
+  game.popups = [];
+  game.stageIntroTimer = 120;
   updateHUD();
 }
 
@@ -1022,6 +1074,9 @@ function loop() {
     game.bullets = game.bullets.filter(b => !b.dead);
     for (const pu of game.powerups) if (!pu.dead) pu.update();
     game.powerups = game.powerups.filter(pu => !pu.dead);
+    for (const pp of game.popups) if (!pp.dead) pp.update();
+    game.popups = game.popups.filter(pp => !pp.dead);
+    if (game.stageIntroTimer > 0) game.stageIntroTimer--;
     spawnEnemyIfReady();
     checkStageClear();
     if (game.stageClearTimer > 0) {
@@ -1056,6 +1111,16 @@ function loop() {
   for (const b of game.bullets) b.draw();
   drawGrassOverlay();
   for (const ex of game.explosions) ex.draw();
+  for (const pp of game.popups) pp.draw();
+  if (game.stageIntroTimer > 0 && game.state === STATE.PLAYING) {
+    const alpha = game.stageIntroTimer > 30 ? 0.7 : (game.stageIntroTimer/30)*0.7;
+    ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = '#fcc442'; ctx.font = 'bold 28px "Press Start 2P", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('STAGE ' + game.stage, CANVAS_W/2, CANVAS_H/2 - 6);
+    ctx.fillStyle = '#80d010'; ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillText('READY', CANVAS_W/2, CANVAS_H/2 + 28);
+  }
 
   ctx.restore();
 
