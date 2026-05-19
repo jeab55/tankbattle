@@ -391,7 +391,7 @@ class Tank {
     this.dir = isPlayer ? DIR.UP : DIR.DOWN;
     this.isPlayer = isPlayer;
     this.type = type;     // enemy: 0=basic 1=fast 2=power 3=armor
-    this.speed = isPlayer ? 1.4 : (type === 1 ? 1.6 : type === 2 ? 1.0 : 0.9);
+    this.speed = isPlayer ? 2 : (type === 1 ? 2 : type === 2 ? 1 : 1);
     this.hp = isPlayer ? 1 : (type === 3 ? 4 : 1);
     this.cooldown = 0;
     this.fireDelay = isPlayer ? 18 : (type === 2 ? 25 : 40);
@@ -409,17 +409,14 @@ class Tank {
   }
 
   tryMove(dir) {
+    const dirChanged = this.dir !== dir;
     this.dir = dir;
     const nx = this.x + DX[dir] * this.speed;
     const ny = this.y + DY[dir] * this.speed;
-    // align to tile when changing direction
     let ax = nx, ay = ny;
-    if (dir === DIR.UP || dir === DIR.DOWN) {
-      const snap = Math.round(this.x / (TILE/2)) * (TILE/2);
-      ax = snap;
-    } else {
-      const snap = Math.round(this.y / (TILE/2)) * (TILE/2);
-      ay = snap;
+    if (dirChanged) {
+      if (dir === DIR.UP || dir === DIR.DOWN) ax = Math.round(this.x / (TILE/2)) * (TILE/2);
+      else ay = Math.round(this.y / (TILE/2)) * (TILE/2);
     }
     if (rectBlocked(ax, ay, this.w, this.h)) return false;
     // tank-tank collision
