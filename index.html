@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TANK BATTLE - Famicom Style</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game-container">
+  <div id="hud-top">
+    <div class="hud-item">1-PLAYER</div>
+    <div class="hud-item">SCORE: <span id="score">0</span></div>
+    <div class="hud-item">HI: <span id="hiscore">20000</span></div>
+  </div>
+  <canvas id="game" width="512" height="480"></canvas>
+  <div id="hud-bottom">
+    <div class="hud-item">LIVES: <span id="lives">3</span></div>
+    <div class="hud-item">STAGE: <span id="stage">1</span></div>
+    <div class="hud-item">ENEMY: <span id="enemy-count">20</span></div>
+  </div>
+  <div id="overlay" class="show">
+    <h1>TANK BATTLE</h1>
+    <p class="subtitle">FAMICOM EDITION</p>
+    <div class="controls">
+      <p>WASD / ลูกศร = เคลื่อนที่</p>
+      <p>SPACE / J = ยิง</p>
+      <p>P = พัก  |  R = เริ่มใหม่</p>
+    </div>
+    <button id="start-btn">START GAME</button>
+    <p class="credit">Built with Claude • Hostinger VPS</p>
+  </div>
+</div>
+<script src="game.js?v=2"></script>
+</body>
+</html>
