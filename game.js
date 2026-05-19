@@ -12,7 +12,7 @@ const TILE = 16;                       // sub-tile size
 const COLS = CANVAS_W / TILE;          // 32
 const ROWS = CANVAS_H / TILE;          // 30
 const TANK = 32;                       // tank size 2x2 tiles
-const BULLET = 6;
+const BULLET = 8;
 
 // Tile types
 const T = { EMPTY:0, BRICK:1, STEEL:2, WATER:3, GRASS:4, ICE:5, EAGLE:6, EAGLE_DEAD:7 };
@@ -522,37 +522,14 @@ class Bullet {
     if (this.x < 0 || this.y < 0 || this.x > CANVAS_W || this.y > CANVAS_H) {
       this.dead = true; explode(this.x, this.y, true); return;
     }
-    // tiles
-    const c = Math.floor((this.x + this.w/2) / TILE);
-    const r = Math.floor((this.y + this.h/2) / TILE);
-    if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
-      const t = game.field[r][c];
-      if (t === T.BRICK) {
-        game.field[r][c] = T.EMPTY;
-        if (this.strong) {
-          // also hit adjacent tile
-          const nc = c + DX[this.dir], nr = r + DY[this.dir];
-          if (nr>=0 && nr<ROWS && nc>=0 && nc<COLS && game.field[nr][nc] === T.BRICK)
-            game.field[nr][nc] = T.EMPTY;
-        }
-        this.dead = true; Audio.hit(); explode(this.x, this.y, true); return;
-      }
-      if (t === T.STEEL) {
-        if (this.strong) game.field[r][c] = T.EMPTY;
-        this.dead = true; Audio.hit(); explode(this.x, this.y, true); return;
-      }
-      if (t === T.EAGLE) {
-        game.field[r][c] = T.EAGLE_DEAD;
-        // damage all 4 eagle tiles & neighbours
-        const cx = c, cy = r;
-        for (let dr=-1; dr<=2; dr++) for (let dc=-1; dc<=2; dc++) {
-          const rr = cy+dr, cc = cx+dc;
-          if (rr>=0 && rr<ROWS && cc>=0 && cc<COLS && game.field[rr][cc] === T.EAGLE)
-            game.field[rr][cc] = T.EAGLE_DEAD;
-        }
-        this.dead = true; Audio.boom(); explode(this.x, this.y);
-        triggerGameOver(); return;
-      }
+    // check all overlapping tiles
+    const c0=Math.floor(this.x/TILE), c1=Math.floor((this.x+this.w-1)/TILE), r0=Math.floor(this.y/TILE), r1=Math.floor((this.y+this.h-1)/TILE);
+    for (let r=r0;r<=r1;r++) for (let c=c0;c<=c1;c++) {
+      if (r<0||r>=ROWS||c<0||c>=COLS) continue;
+      const t=game.field[r][c];
+      if (t===T.BRICK) { game.field[r][c]=T.EMPTY; if(this.strong){const nc=c+DX[this.dir],nr=r+DY[this.dir]; if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&game.field[nr][nc]===T.BRICK) game.field[nr][nc]=T.EMPTY;} this.dead=true; Audio.hit(); explode(this.x,this.y,true); return; }
+      if (t===T.STEEL) { if(this.strong) game.field[r][c]=T.EMPTY; this.dead=true; Audio.hit(); explode(this.x,this.y,true); return; }
+      if (t===T.EAGLE) { game.field[r][c]=T.EAGLE_DEAD; for(let dr=-1;dr<=2;dr++) for(let dc=-1;dc<=2;dc++){const rr=r+dr,cc=c+dc; if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS&&game.field[rr][cc]===T.EAGLE) game.field[rr][cc]=T.EAGLE_DEAD;} this.dead=true; Audio.boom(); explode(this.x,this.y); triggerGameOver(); return; }
     }
     // tanks
     if (this.owner.isPlayer) {
